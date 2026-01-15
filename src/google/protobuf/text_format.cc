@@ -29,6 +29,7 @@
 #include "absl/base/macros.h"
 #include "absl/container/btree_set.h"
 #include "absl/log/absl_check.h"
+#include "absl/log/absl_log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/cord.h"
@@ -173,6 +174,29 @@ PROTOBUF_EXPORT std::string Utf8Format(const Message& message) {
                                     FieldReporterLevel::kUtf8Format);
 }
 
+
+bool Message::AbslParseFlagImpl(absl::string_view text, std::string& error) {
+  TextFormat::Parser parser;
+  struct StringErrorCollector : io::ErrorCollector {
+    explicit StringErrorCollector(std::string& error) : error(error) {}
+    std::string& error;
+    void RecordError(int line, io::ColumnNumber column,
+                     absl::string_view message) override {
+      error =
+          absl::StrFormat("(Line %v, Column %v): %v", line, column, message);
+    }
+  } collector(error);
+  parser.RecordErrorsTo(&collector);
+  return parser.ParseFromString(text, this);
+}
+
+std::string Message::AbslUnparseFlagImpl() const {
+  std::string str;
+  if (!TextFormat::PrintToString(*this, &str)) {
+    ABSL_LOG(ERROR) << "Could not unparse message flag.";
+  }
+  return str;
+}
 
 // ===========================================================================
 // Implementation of the parse information tree class.
